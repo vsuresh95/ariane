@@ -170,4 +170,22 @@ package ariane_axi;
         r_chan_slv_t  r;
     } resp_slv_t;
 
+   // We only need to add the ACE snoop address channel (AC) to handle
+   // invalidate requests from the cahce hierarcy to the wt L1.
+   // AC Channel
+   typedef struct packed {
+      addr_t            addr;
+      axi_pkg::prot_t   prot;
+      axi_pkg::snoop_t  snoop;
+   } ac_chan_t;
+
+   typedef struct packed {
+      logic         ac_valid;
+      ac_chan_t     ac;
+   } snoop_req_t;
+
+   typedef struct packed {
+      logic         ac_ready;
+   } snoop_resp_t;
+
 endpackage

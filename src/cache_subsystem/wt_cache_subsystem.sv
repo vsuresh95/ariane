@@ -57,7 +57,9 @@ module wt_cache_subsystem #(
 `else
   // memory side
   output ariane_axi::req_t               axi_req_o,
-  input  ariane_axi::resp_t              axi_resp_i
+  input  ariane_axi::resp_t              axi_resp_i,
+  input  ariane_axi::snoop_req_t         ace_req_i,
+  output ariane_axi::snoop_resp_t        ace_resp_o
 `endif
   // TODO: interrupt interface
 );
@@ -70,6 +72,14 @@ module wt_cache_subsystem #(
   logic dcache_adapter_data_req, adapter_dcache_data_ack, adapter_dcache_rtrn_vld;
   wt_cache_pkg::dcache_req_t  dcache_adapter;
   wt_cache_pkg::dcache_rtrn_t adapter_dcache;
+
+  // invalidate requests from AXI bus
+  logic                   adapter_icache_inv_req;
+  logic [riscv::PLEN-1:0] adapter_icache_inv_addr;
+  logic                   adapter_icache_inv_ack;
+  logic                   adapter_dcache_inv_req;
+  logic [riscv::PLEN-1:0] adapter_dcache_inv_addr;
+  logic                   adapter_dcache_inv_ack;
 
   wt_icache #(
     // use ID 0 for icache reads
@@ -85,6 +95,9 @@ module wt_cache_subsystem #(
     .areq_o             ( icache_areq_o           ),
     .dreq_i             ( icache_dreq_i           ),
     .dreq_o             ( icache_dreq_o           ),
+    .mem_inv_req_i      ( adapter_icache_inv_req  ),
+    .mem_inv_addr_i     ( adapter_icache_inv_addr ),
+    .mem_inv_ack_o      ( adapter_icache_inv_ack  ),
     .mem_rtrn_vld_i     ( adapter_icache_rtrn_vld ),
     .mem_rtrn_i         ( adapter_icache          ),
     .mem_data_req_o     ( icache_adapter_data_req ),
@@ -114,6 +127,9 @@ module wt_cache_subsystem #(
     .amo_resp_o      ( dcache_amo_resp_o       ),
     .req_ports_i     ( dcache_req_ports_i      ),
     .req_ports_o     ( dcache_req_ports_o      ),
+    .mem_inv_req_i   ( adapter_dcache_inv_req  ),
+    .mem_inv_addr_i  ( adapter_dcache_inv_addr ),
+    .mem_inv_ack_o   ( adapter_dcache_inv_ack  ),
     .mem_rtrn_vld_i  ( adapter_dcache_rtrn_vld ),
     .mem_rtrn_i      ( adapter_dcache          ),
     .mem_data_req_o  ( dcache_adapter_data_req ),
@@ -155,13 +171,21 @@ module wt_cache_subsystem #(
     .icache_data_i      ( icache_adapter          ),
     .icache_rtrn_vld_o  ( adapter_icache_rtrn_vld ),
     .icache_rtrn_o      ( adapter_icache          ),
+    .icache_inv_req_o   ( adapter_icache_inv_req  ),
+    .icache_inv_addr_o  ( adapter_icache_inv_addr ),
+    .icache_inv_ack_i   ( adapter_icache_inv_ack  ),
     .dcache_data_req_i  ( dcache_adapter_data_req ),
     .dcache_data_ack_o  ( adapter_dcache_data_ack ),
     .dcache_data_i      ( dcache_adapter          ),
     .dcache_rtrn_vld_o  ( adapter_dcache_rtrn_vld ),
     .dcache_rtrn_o      ( adapter_dcache          ),
+    .dcache_inv_req_o   ( adapter_dcache_inv_req  ),
+    .dcache_inv_addr_o  ( adapter_dcache_inv_addr ),
+    .dcache_inv_ack_i   ( adapter_dcache_inv_ack  ),
     .axi_req_o          ( axi_req_o               ),
-    .axi_resp_i         ( axi_resp_i              )
+    .axi_resp_i         ( axi_resp_i              ),
+    .ace_req_i          ( ace_req_i               ),
+    .ace_resp_o         ( ace_resp_o              )
   );
 `endif
 
