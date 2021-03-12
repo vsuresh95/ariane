@@ -39,9 +39,20 @@ module wt_axi_adapter #(
   output logic                 dcache_rtrn_vld_o,
   output dcache_rtrn_t         dcache_rtrn_o,
 
+  // invalidate request from AXI
+  output logic                   icache_inv_req_o,
+  output logic [riscv::PLEN-1:0] icache_inv_addr_o,
+  input  logic                   icache_inv_ack_i,
+  output logic                   dcache_inv_req_o,
+  output logic [riscv::PLEN-1:0] dcache_inv_addr_o,
+  input  logic                   dcache_inv_ack_i,
+
   // AXI port
   output ariane_axi::req_t    axi_req_o,
-  input  ariane_axi::resp_t   axi_resp_i
+  input  ariane_axi::resp_t   axi_resp_i,
+  // ACE port (only need AC channel for invalidate)
+  input  ariane_axi::snoop_req_t   ace_req_i,
+  output ariane_axi::snoop_resp_t  ace_resp_o
 );
 
   // support up to 512bit cache lines
@@ -87,6 +98,14 @@ module wt_axi_adapter #(
   logic icache_rd_full, icache_rd_empty;
   logic dcache_rd_full, dcache_rd_empty;
   logic dcache_wr_full, dcache_wr_empty;
+  logic [riscv::PLEN-1:0] dcache_rtrn_rd_addr;
+
+  // snooping on ACE
+  logic                 axi_ac_valid;
+  logic                 axi_ac_ready;
+  logic [63:0]          axi_ac_addr;
+  axi_pkg::prot_t       axi_ac_prot;
+  logic                 inval_gnt;
 
   assign icache_data_ack_o  = icache_data_req_i & ~icache_data_full;
   assign dcache_data_ack_o  = dcache_data_req_i & ~dcache_data_full;
@@ -312,6 +331,24 @@ module wt_axi_adapter #(
     .data_i     ( dcache_data.tid         ),
     .push_i     ( arb_ack[1] & axi_rd_gnt ),
     .data_o     ( dcache_rtrn_rd_tid      ),
+    .pop_i      ( dcache_rd_pop           )
+  );
+
+  //keep track of read address to check incoming invalidations for conflict
+  fifo_v3 #(
+    .DATA_WIDTH ( riscv::PLEN   ),
+    .DEPTH      ( MetaFifoDepth )
+  ) i_rd_dcache_addr (
+    .clk_i      ( clk_i                   ),
+    .rst_ni     ( rst_ni                  ),
+    .flush_i    ( 1'b0                    ),
+    .testmode_i ( 1'b0                    ),
+    .full_o     (                         ),
+    .empty_o    (                         ),
+    .usage_o    (                         ),
+    .data_i     ( dcache_data.paddr       ),
+    .push_i     ( arb_ack[1] & axi_rd_gnt ),
+    .data_o     ( dcache_rtrn_rd_addr     ),
     .pop_i      ( dcache_rd_pop           )
   );
 
@@ -543,6 +580,20 @@ module wt_axi_adapter #(
     end
   end
 
+  // Snoop channel request-response
+  assign icache_inv_addr_o = axi_ac_addr;
+  assign dcache_inv_addr_o = axi_ac_addr;
+  assign axi_ac_ready      = (icache_inv_ack_i & icache_inv_req_o) | (dcache_inv_ack_i & dcache_inv_req_o);
+  assign inval_gnt = (axi_ac_addr[riscv::PLEN-1:0] != dcache_rtrn_rd_addr) | dcache_rd_empty;
+
+  always_comb begin : p_axi_snoop
+     icache_inv_req_o = 1'b0;
+     dcache_inv_req_o = 1'b0;
+     if (axi_ac_prot[2])
+       icache_inv_req_o = axi_ac_valid & inval_gnt;
+     else
+       dcache_inv_req_o = axi_ac_valid & inval_gnt;
+  end
 
 ///////////////////////////////////////////////////////
 // axi protocol shim
@@ -586,8 +637,14 @@ module wt_axi_adapter #(
     .wr_valid_o      ( axi_wr_valid      ),
     .wr_id_o         ( axi_wr_id_out     ),
     .wr_exokay_o     ( axi_wr_exokay     ),
+    .axi_ac_ready_i  ( axi_ac_ready      ),
+    .axi_ac_valid_o  ( axi_ac_valid      ),
+    .axi_ac_addr_o   ( axi_ac_addr       ),
+    .axi_ac_prot_o   ( axi_ac_prot       ),
     .axi_req_o       ( axi_req_o         ),
-    .axi_resp_i      ( axi_resp_i        )
+    .axi_resp_i      ( axi_resp_i        ),
+    .ace_req_i       ( ace_req_i         ),
+    .ace_resp_o      ( ace_resp_o        )
   );
 
 ///////////////////////////////////////////////////////

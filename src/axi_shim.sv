@@ -63,9 +63,18 @@ module axi_shim #(
     output logic                            wr_valid_o,
     output logic [AxiIdWidth-1:0]           wr_id_o,
     output logic                            wr_exokay_o, // indicates whether exclusive tx succeeded
+    // snoop channel
+    // request
+    output logic                            axi_ac_valid_o,
+    output logic [63:0]                     axi_ac_addr_o,
+    output axi_pkg::prot_t                  axi_ac_prot_o,
+    // response
+    input  logic                            axi_ac_ready_i,
     // AXI port
     output ariane_axi::req_t                axi_req_o,
-    input  ariane_axi::resp_t               axi_resp_i
+    input  ariane_axi::resp_t               axi_resp_i,
+    input  ariane_axi::snoop_req_t          ace_req_i,
+    output ariane_axi::snoop_resp_t         ace_resp_o
 );
     localparam AddrIndex = ($clog2(AxiNumWords) > 0) ? $clog2(AxiNumWords) : 1;
 
@@ -265,8 +274,19 @@ module axi_shim #(
     assign rd_valid_o          = axi_resp_i.r_valid;
     assign rd_id_o             = axi_resp_i.r.id;
     assign rd_exokay_o         = (axi_resp_i.r.resp == axi_pkg::RESP_EXOKAY);        
-    
-    
+
+
+///////////////////////////////////////////////////////
+// snoop channel
+///////////////////////////////////////////////////////
+
+    // accepting only invalidation requests
+    assign axi_ac_valid_o      = ace_req_i.ac.snoop == axi_pkg::SNOOP_MAKEINVALID ? ace_req_i.ac_valid : 1'b0;
+    assign axi_ac_prot_o       = ace_req_i.ac.prot;
+    assign axi_ac_addr_o       = ace_req_i.ac.addr;
+    assign ace_resp_o.ac_ready = axi_ac_ready_i;
+
+
     // ----------------
     // Registers
     // ----------------

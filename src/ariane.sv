@@ -51,6 +51,8 @@ module ariane #(
   // memory side, AXI Master
   output ariane_axi::req_t             axi_req_o,
   input  ariane_axi::resp_t            axi_resp_i,
+  input  ariane_axi::snoop_req_t       ace_req_i,
+  output ariane_axi::snoop_resp_t      ace_resp_o,
 `endif
   // fence indication to l2
   output logic [1:0]                   fence_l2_o
@@ -628,7 +630,9 @@ module ariane #(
 `else
     // memory side
     .axi_req_o             ( axi_req_o                   ),
-    .axi_resp_i            ( axi_resp_i                  )
+    .axi_resp_i            ( axi_resp_i                  ),
+    .ace_req_i             ( ace_req_i                   ),
+    .ace_resp_o            ( ace_resp_o                  )
 `endif
   );
 `else
