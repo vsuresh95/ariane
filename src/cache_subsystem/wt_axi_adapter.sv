@@ -563,7 +563,7 @@ module wt_axi_adapter #(
   // Snoop channel request-response
   assign icache_inv_addr_o = axi_ac_addr;
   assign dcache_inv_addr_o = axi_ac_addr;
-  assign axi_ac_ready      = icache_inv_ack_i | dcache_inv_ack_i;
+  assign axi_ac_ready      = (icache_inv_ack_i & icache_inv_req_o) | (dcache_inv_ack_i & dcache_inv_req_o);
 
   always_comb begin : p_axi_snoop
      icache_inv_req_o = 1'b0;

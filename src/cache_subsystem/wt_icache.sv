@@ -235,7 +235,6 @@ end else begin : gen_piton_offset
               end
               else begin
                 // If no other request, accept incoming invalidate from AXI
-                mem_inv_ack_o = 1'b1;
                 if (mem_inv_req_i) begin
                   cache_rden    = 1'b1;
                   mem_inv_ack_o = 1'b1;
