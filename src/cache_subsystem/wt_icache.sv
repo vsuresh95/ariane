@@ -307,6 +307,7 @@ end else begin : gen_piton_offset
       // valid bit
       INVAL: begin
          inv_en = 1'b1;
+         state_d = IDLE;
       end
       //////////////////////////////////
       // wait until the memory transaction
