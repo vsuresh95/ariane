@@ -50,14 +50,17 @@ module wt_dcache_inval #(
   logic [DCACHE_CL_IDX_WIDTH-1:0] inv_idx_d, inv_idx_q;
   logic [L15_WAY_WIDTH-1:0]       inv_way_d, inv_way_q;
 
-  logic rd_req, save_idx, save_way, hit, inv_req;
+  logic rd_req, save_idx, save_way, save_tag, hit, inv_req;
 
+  logic [DCACHE_TAG_WIDTH-1:0] cmp_tag_d, cmp_tag_q;
 
   // cache read
-  assign rd_tag_o      = mem_inv_paddr_i[ariane_pkg::DCACHE_TAG_WIDTH     +
-                                         ariane_pkg::DCACHE_INDEX_WIDTH-1 :
-                                         ariane_pkg::DCACHE_INDEX_WIDTH];
-  assign rd_idx_o      = mem_inv_paddr_i[ariane_pkg::DCACHE_INDEX_WIDTH-1:0];
+  assign cmp_tag_d     = (save_tag) ? mem_inv_paddr_i[ariane_pkg::DCACHE_TAG_WIDTH     +
+                                                      ariane_pkg::DCACHE_INDEX_WIDTH-1 :
+                                                      ariane_pkg::DCACHE_INDEX_WIDTH]    :
+                                      cmp_tag_q;
+  assign rd_tag_o      = cmp_tag_d;
+  assign rd_idx_o      = mem_inv_paddr_i[ariane_pkg::DCACHE_INDEX_WIDTH-1:DCACHE_OFFSET_WIDTH];
   assign rd_off_o      = '0;
   assign rd_tag_only_o = 1'b1;
   assign rd_req_o      = rd_req;
@@ -81,6 +84,7 @@ module wt_dcache_inval #(
 
      save_idx      = 1'b0;
      save_way      = 1'b0;
+     save_tag      = 1'b0;
 
      inv_req       = 1'b0;
      rd_req        = 1'b0;
@@ -92,7 +96,8 @@ module wt_dcache_inval #(
        // wait for an incoming request
        IDLE : begin
           if (mem_inv_req_i) begin
-             rd_req = 1'b1;
+             rd_req   = 1'b1;
+             save_tag = 1'b1;
              if (rd_ack_i) begin
                 state_d       = INV_REQ;
                 save_idx      = 1'b1;
@@ -134,10 +139,12 @@ module wt_dcache_inval #(
         state_q   <= IDLE;
         inv_idx_q <= '0;
         inv_way_q <= '0;
+        cmp_tag_q <= '0;
      end else begin
         state_q   <= state_d;
         inv_idx_q <= inv_idx_d;
         inv_way_q <= inv_idx_d;
+        cmp_tag_q <= cmp_tag_d;
      end
   end
 
