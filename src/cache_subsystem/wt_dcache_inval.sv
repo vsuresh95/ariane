@@ -47,8 +47,8 @@ module wt_dcache_inval #(
 
   enum logic [1:0] { IDLE, INV_REQ, WAIT_INV } state_d, state_q;
 
-  logic [DCACHE_CL_IDX_WIDTH-1:0] inv_idx_d, inv_idx_q;
-  logic [L15_WAY_WIDTH-1:0]       inv_way_d, inv_way_q;
+  logic [DCACHE_INDEX_WIDTH-1:0] inv_idx_d, inv_idx_q;
+  logic [DCACHE_SET_ASSOC-1:0]       inv_way_d, inv_way_q;
 
   logic rd_req, save_idx, save_way, save_tag, hit, inv_req;
 
@@ -65,16 +65,25 @@ module wt_dcache_inval #(
   assign rd_tag_only_o = 1'b1;
   assign rd_req_o      = rd_req;
 
+    // save invalidate request
+  assign inv_way_d = (save_way) ? (rd_vld_bits_i & rd_hit_oh_i)                       : inv_way_q;
+  assign inv_idx_d = (save_idx) ? mem_inv_paddr_i[ariane_pkg::DCACHE_INDEX_WIDTH-1:0] : inv_idx_q;
+  assign hit       = |(rd_vld_bits_i & rd_hit_oh_i);
+
   // invalidate request
   assign inv_req_o.vld = inv_req;
   assign inv_req_o.all = 1'b0; // only invalidate target way
   assign inv_req_o.idx = inv_idx_q;
-  assign inv_req_o.way = inv_way_d;
 
-  // save invalidate request
-  assign inv_way_d = (save_way) ? (rd_vld_bits_i & rd_hit_oh_i)                       : inv_way_q;
-  assign inv_idx_d = (save_idx) ? mem_inv_paddr_i[ariane_pkg::DCACHE_INDEX_WIDTH-1:0] : inv_idx_q;
-  assign hit       = |(rd_vld_bits_i & rd_hit_oh_i);
+  always_comb begin : way_oh2bin
+     integer i;
+     inv_req_o.way = '0;
+     for (i = 0; i < DCACHE_SET_ASSOC; i = i + 1) begin
+         if (inv_way_d[i] == 1'b1) begin
+            inv_req_o.way = i;
+         end
+     end
+  end
 
   // ---------------------
   // Invalidate Control
@@ -143,7 +152,7 @@ module wt_dcache_inval #(
      end else begin
         state_q   <= state_d;
         inv_idx_q <= inv_idx_d;
-        inv_way_q <= inv_idx_d;
+        inv_way_q <= inv_way_d;
         cmp_tag_q <= cmp_tag_d;
      end
   end

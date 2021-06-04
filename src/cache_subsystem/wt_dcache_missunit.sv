@@ -340,10 +340,10 @@ module wt_dcache_missunit #(
   assign wr_cl_nc_o      = mshr_q.nc;
   assign wr_cl_vld_o     = load_ack | (| wr_cl_we_o);
 
-  assign inv_req_way_oh  = (Axi64BitCompliant) ? inv_req_i.way                         :
+  assign inv_req_way_oh  = (Axi64BitCompliant) ? dcache_way_bin2oh(inv_req_i.way)   :
 			                         dcache_way_bin2oh(mem_rtrn_i.inv.way);
 
-  assign wr_cl_we_o      = (flush_en   )  ? '1                                    :
+  assign wr_cl_we_o      = (flush_en   )  ? '1                                     :
                            (inv_vld_all)   ? '1                                    :
                            (inv_vld    )   ? inv_req_way_oh                        :
                            (cl_write_en)   ? dcache_way_bin2oh(mshr_q.repl_way)    :
@@ -357,9 +357,10 @@ module wt_dcache_missunit #(
   assign inv_req_idx     = (Axi64BitCompliant) ? inv_req_i.idx[DCACHE_INDEX_WIDTH-1:DCACHE_OFFSET_WIDTH]      :
 			                         mem_rtrn_i.inv.idx[DCACHE_INDEX_WIDTH-1:DCACHE_OFFSET_WIDTH];
 
-  assign wr_cl_idx_o     = (flush_en) ? cnt_q                                                        :
-                           (inv_vld)  ? inv_req_idx                                                  :
-                                        mshr_q.paddr[DCACHE_INDEX_WIDTH-1:DCACHE_OFFSET_WIDTH];
+  assign wr_cl_idx_o     = (flush_en)    ? cnt_q                                                        :
+                           (inv_vld_all) ? mem_rtrn_i.inv.idx[DCACHE_INDEX_WIDTH-1:DCACHE_OFFSET_WIDTH] :
+                           (inv_vld)     ? inv_req_idx                                                  :
+                                           mshr_q.paddr[DCACHE_INDEX_WIDTH-1:DCACHE_OFFSET_WIDTH];
 
   assign wr_cl_tag_o     = mshr_q.paddr[DCACHE_TAG_WIDTH+DCACHE_INDEX_WIDTH-1:DCACHE_INDEX_WIDTH];
   assign wr_cl_off_o     = mshr_q.paddr[DCACHE_OFFSET_WIDTH-1:0];
