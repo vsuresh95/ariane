@@ -55,7 +55,11 @@ module ariane #(
   output ariane_axi::snoop_resp_t      ace_resp_o,
 `endif
   // fence indication to l2
-  output logic [1:0]                   fence_l2_o
+  output logic [1:0]                   fence_l2_o,
+
+  //flush L1 from L2
+  input logic flush_l1_i,
+  output logic flush_done_o
 );
 
   // ------------------------------------------
@@ -234,6 +238,7 @@ module ariane #(
   dcache_req_i_t [2:0]      dcache_req_ports_ex_cache;
   dcache_req_o_t [2:0]      dcache_req_ports_cache_ex;
   logic                     dcache_commit_wbuffer_empty;
+  logic                     dcache_flush;
 
   // --------------
   // Frontend
@@ -594,7 +599,8 @@ module ariane #(
   // -------------------
   // Cache Subsystem
   // -------------------
-
+  assign dcache_flush = dcache_flush_ctrl_cache | flush_l1_i;
+  assign flush_done_o = dcache_flush_ack_cache_ctrl;
 `ifdef WT_DCACHE
   // this is a cache subsystem that is compatible with OpenPiton
   wt_cache_subsystem #(
@@ -613,7 +619,7 @@ module ariane #(
     .icache_dreq_o         ( icache_dreq_cache_if        ),
     // D$
     .dcache_enable_i       ( dcache_en_csr_nbdcache      ),
-    .dcache_flush_i        ( dcache_flush_ctrl_cache     ),
+    .dcache_flush_i        ( dcache_flush                ),
     .dcache_flush_ack_o    ( dcache_flush_ack_cache_ctrl ),
     // to commit stage
     .dcache_amo_req_i      ( amo_req                     ),
