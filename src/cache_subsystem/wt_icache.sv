@@ -43,7 +43,6 @@ module wt_icache  #(
   // data requests
   input  icache_dreq_i_t            dreq_i,
   output icache_dreq_o_t            dreq_o,
-  // Invalidation request from AXI
   input  logic                      mem_inv_req_i,        // invalidate request
   input  logic [riscv::PLEN-1:0]    mem_inv_addr_i,       // physical address to invalidate
   output logic                      mem_inv_ack_o,        // invalidate request ack
@@ -77,11 +76,6 @@ module wt_icache  #(
   logic                                 inv_en;                       // incoming invalidations
   logic                                 flush_en, flush_done;         // used to flush cache entries
   logic [ICACHE_CL_IDX_WIDTH-1:0]       flush_cnt_d, flush_cnt_q;     // used to flush cache entries
-  logic [ICACHE_CL_IDX_WIDTH-1:0]       inv_index_d, inv_index_q;     // used to handle invalidation requests when AXI interface is in use
-  logic [ICACHE_SET_ASSOC-1:0]          inv_way_hit_oh;               // way to invalidate if hit after lookup
-  logic [ICACHE_TAG_WIDTH-1:0]          inv_tag_d, inv_tag_q;         // this is the cache tag to compare for invalidation
-  logic [ICACHE_SET_ASSOC-1:0]          inv_hit;                      // hit from tag compare for invalidation
-
 
   // mem arrays
   logic                                 cl_we;                        // write enable to memory array
@@ -99,7 +93,7 @@ module wt_icache  #(
   logic [ICACHE_CL_IDX_WIDTH-1:0]       vld_addr;                     // valid bit
 
   // cpmtroller FSM
-  typedef enum logic[2:0] {FLUSH, IDLE, READ, MISS, TLB_MISS, KILL_ATRANS, KILL_MISS, INVAL} state_e;
+  typedef enum logic[2:0] {FLUSH, IDLE, READ, MISS, TLB_MISS, KILL_ATRANS, KILL_MISS} state_e;
   state_e state_d, state_q;
 
 ///////////////////////////////////////////////////////
@@ -108,7 +102,6 @@ module wt_icache  #(
 
   // extract tag from physical address, check if NC
   assign cl_tag_d  = (areq_i.fetch_valid) ? areq_i.fetch_paddr[ICACHE_TAG_WIDTH+ICACHE_INDEX_WIDTH-1:ICACHE_INDEX_WIDTH] : cl_tag_q;
-
 
   // noncacheable if request goes to I/O space, or if cache is disabled
   assign paddr_is_nc = (~cache_en_q) | (~ariane_pkg::is_inside_cacheable_regions(ArianeCfg, {{64-ICACHE_TAG_WIDTH{1'b0}}, cl_tag_d, {ICACHE_INDEX_WIDTH{1'b0}}}));
@@ -152,16 +145,7 @@ end else begin : gen_piton_offset
   assign mem_data_o.way   = repl_way;
   assign dreq_o.vaddr     = vaddr_q;
 
-
-///////////////////////////////////////////////////////
-// Snooping: invalidate single line based on paddr
-///////////////////////////////////////////////////////
-  assign inv_tag_d      = (mem_inv_req_i & mem_inv_ack_o) ? mem_inv_addr_i[ICACHE_TAG_WIDTH+ICACHE_INDEX_WIDTH-1:ICACHE_INDEX_WIDTH] : inv_tag_q;
-  assign inv_index_d    = (mem_inv_req_i & mem_inv_ack_o) ? mem_inv_addr_i[ICACHE_INDEX_WIDTH-1:ICACHE_OFFSET_WIDTH]                 : inv_index_q;
-
-  for (genvar i=0;i<ICACHE_SET_ASSOC;i++) begin : gen_tag_cmp_inval
-    assign inv_way_hit_oh[i] = (cl_tag_rdata[i] == inv_tag_q) & vld_rdata[i];
-  end
+  assign mem_inv_ack_o = 1'b1;
 
 ///////////////////////////////////////////////////////
 // main control logic
@@ -183,11 +167,9 @@ end else begin : gen_piton_offset
     areq_o.fetch_req = 1'b0;
     dreq_o.valid     = 1'b0;
     mem_data_req_o   = 1'b0;
-    mem_inv_ack_o    = 1'b0;
     // performance counter
     miss_o           = 1'b0;
 
-`ifdef PITON_ARIANE
     // handle invalidations unconditionally
     // note: invald are mutually exclusive with
     // ifills, since both arrive over the same IF
@@ -196,15 +178,12 @@ end else begin : gen_piton_offset
     if (mem_rtrn_vld_i && mem_rtrn_i.rtype == ICACHE_INV_REQ) begin
       inv_en = 1'b1;
     end
-`endif
 
     unique case (state_q)
       //////////////////////////////////
       // this clears all valid bits
       FLUSH: begin
           flush_en = 1'b1;
-          // If we're flushing, any incoming invalidate is satisfied
-          mem_inv_ack_o = 1'b1;
         if (flush_done) begin
           state_d = IDLE;
           flush_d = 1'b0;
@@ -229,18 +208,11 @@ end else begin : gen_piton_offset
               // we have a new request
               if (dreq_i.req) begin
                 cache_rden       = 1'b1;
-                if (!dreq_i.kill_s1) begin
-                  state_d          = READ;
-                end
+                state_d          = READ;
               end
-              else begin
-                // If no other request, accept incoming invalidate from AXI
-                if (mem_inv_req_i) begin
-                  cache_rden    = 1'b1;
-                  mem_inv_ack_o = 1'b1;
-                  state_d       = INVAL;
-                end
-              end
+            end
+            if (dreq_i.kill_s1) begin
+              state_d = IDLE;
             end
           end
       end
@@ -299,15 +271,6 @@ end else begin : gen_piton_offset
           end else if (dreq_i.kill_s2 || flush_d) begin
             state_d  = KILL_ATRANS;
           end
-      end
-      //////////////////////////////////
-      // check whether we have a hit
-      // on the paddr to be invalidated
-      // and reset the corresponding
-      // valid bit
-      INVAL: begin
-         inv_en = 1'b1;
-         state_d = IDLE;
       end
       //////////////////////////////////
       // wait until the memory transaction
@@ -401,27 +364,14 @@ end else begin : gen_piton_offset
 
   // invalidation/clearing address
   // flushing takes precedence over invals
-`ifdef PITON_ARIANE
   assign vld_addr = (flush_en)       ? flush_cnt_q        :
                     (inv_en)         ? mem_rtrn_i.inv.idx[ICACHE_INDEX_WIDTH-1:ICACHE_OFFSET_WIDTH] :
                                        cl_index;
-`else
-  assign vld_addr = (flush_en)                      ? flush_cnt_q :
-                    (inv_en)                        ? inv_index_q :
-                    (mem_inv_req_i & mem_inv_ack_o) ? inv_index_d :
-                                                      cl_index;
-`endif
 
-`ifdef PITON_ARIANE
   assign vld_req  = (flush_en || cache_rden)        ? '1                                    :
                     (mem_rtrn_i.inv.all && inv_en)  ? '1                                    :
                     (mem_rtrn_i.inv.vld && inv_en)  ? icache_way_bin2oh(mem_rtrn_i.inv.way) :
                                                       repl_way_oh_q;
-`else
-  assign vld_req  = (flush_en || cache_rden)        ? '1                                    :
-                    (inv_en)                        ? inv_way_hit_oh                        :
-                                                      repl_way_oh_q;
-`endif
 
   assign vld_wdata = (cache_wren) ? '1 : '0;
 
@@ -542,8 +492,6 @@ end else begin : gen_piton_offset
       state_q       <= IDLE;
       cl_offset_q   <= '0;
       repl_way_oh_q <= '0;
-      inv_index_q   <= '0;
-      inv_tag_q     <= '0;
     end else begin
       cl_tag_q      <= cl_tag_d;
       flush_cnt_q   <= flush_cnt_d;
@@ -554,8 +502,6 @@ end else begin : gen_piton_offset
       state_q       <= state_d;
       cl_offset_q   <= cl_offset_d;
       repl_way_oh_q <= repl_way_oh_d;
-      inv_index_q   <= inv_index_d;
-      inv_tag_q     <= inv_tag_d;
     end
   end
 
