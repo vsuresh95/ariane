@@ -801,89 +801,89 @@ module ariane #(
 // mock tracer for Verilator, to be used with spike-dasm
 `else
 
-  int f;
-  logic [63:0] cycles;
-
-`ifdef DROMAJO
-  initial begin
-    string f_name;
-    if ($value$plusargs("checkpoint=%s", f_name)) begin
-      init_dromajo({f_name, ".cfg"});
-      $display("Done initing dromajo...");
-    end else begin
-      $display("Failed initing dromajo. Provide checkpoint name.");
-    end
-  end
-`endif
-
-  initial begin
-    f = $fopen("trace_hart_00.dasm", "w");
-  end
-
-`ifdef DROMAJO
-  always_ff @(posedge clk_i) begin
-      for (int i = 0; i < NR_COMMIT_PORTS; i++) begin
-        if (commit_instr_id_commit[i].ex.valid) begin
-          dromajo_trap(hart_id_i,
-                       commit_instr_id_commit[i].ex.cause);
-        end
-      end
-  end
-
-  always_ff @(posedge clk_i) begin
-    for (int i = 0; i < NR_COMMIT_PORTS; i++) begin
-      if (commit_ack[i] && !commit_instr_id_commit[i].ex.valid) begin
-        if (csr_op_commit_csr == 0) begin
-          dromajo_step(hart_id_i,
-                       commit_instr_id_commit[i].pc,
-                       commit_instr_id_commit[i].ex.tval[31:0],
-                       commit_instr_id_commit[i].result, cycles);
-        end else begin
-          dromajo_step(hart_id_i,
-                       commit_instr_id_commit[i].pc,
-                       commit_instr_id_commit[i].ex.tval[31:0],
-                       csr_rdata_csr_commit, cycles);
-        end
-      end
-    end
-  end
-`endif
-
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (~rst_ni) begin
-      cycles <= 0;
-    end else begin
-      string mode = "";
-      if (debug_mode) mode = "D";
-      else begin
-        case (priv_lvl)
-        riscv::PRIV_LVL_M: mode = "M";
-        riscv::PRIV_LVL_S: mode = "S";
-        riscv::PRIV_LVL_U: mode = "U";
-        endcase
-      end
-      for (int i = 0; i < NR_COMMIT_PORTS; i++) begin
-        if (commit_ack[i] && !commit_instr_id_commit[i].ex.valid) begin
-          $fwrite(f, "%d 0x%0h %s (0x%h) DASM(%h)\n", cycles, commit_instr_id_commit[i].pc, mode, commit_instr_id_commit[i].ex.tval[31:0], commit_instr_id_commit[i].ex.tval[31:0]);
-        end else if (commit_ack[i] && commit_instr_id_commit[i].ex.valid) begin
-          if (commit_instr_id_commit[i].ex.cause == 2) begin
-            $fwrite(f, "Exception Cause: Illegal Instructions, DASM(%h) PC=%h\n", commit_instr_id_commit[i].ex.tval[31:0], commit_instr_id_commit[i].pc);
-          end else begin
-            if (debug_mode) begin
-              $fwrite(f, "%d 0x%0h %s (0x%h) DASM(%h)\n", cycles, commit_instr_id_commit[i].pc, mode, commit_instr_id_commit[i].ex.tval[31:0], commit_instr_id_commit[i].ex.tval[31:0]);
-            end else begin
-              $fwrite(f, "Exception Cause: %5d, DASM(%h) PC=%h\n", commit_instr_id_commit[i].ex.cause, commit_instr_id_commit[i].ex.tval[31:0], commit_instr_id_commit[i].pc);
-            end
-          end
-        end
-      end
-        cycles <= cycles + 1;
-    end
-  end
-
-  final begin
-    $fclose(f);
-  end
+//   int f;
+//   logic [63:0] cycles;
+// 
+// `ifdef DROMAJO
+//   initial begin
+//     string f_name;
+//     if ($value$plusargs("checkpoint=%s", f_name)) begin
+//       init_dromajo({f_name, ".cfg"});
+//       $display("Done initing dromajo...");
+//     end else begin
+//       $display("Failed initing dromajo. Provide checkpoint name.");
+//     end
+//   end
+// `endif
+// 
+//   initial begin
+//     f = $fopen("trace_hart_00.dasm", "w");
+//   end
+// 
+// `ifdef DROMAJO
+//   always_ff @(posedge clk_i) begin
+//       for (int i = 0; i < NR_COMMIT_PORTS; i++) begin
+//         if (commit_instr_id_commit[i].ex.valid) begin
+//           dromajo_trap(hart_id_i,
+//                        commit_instr_id_commit[i].ex.cause);
+//         end
+//       end
+//   end
+// 
+//   always_ff @(posedge clk_i) begin
+//     for (int i = 0; i < NR_COMMIT_PORTS; i++) begin
+//       if (commit_ack[i] && !commit_instr_id_commit[i].ex.valid) begin
+//         if (csr_op_commit_csr == 0) begin
+//           dromajo_step(hart_id_i,
+//                        commit_instr_id_commit[i].pc,
+//                        commit_instr_id_commit[i].ex.tval[31:0],
+//                        commit_instr_id_commit[i].result, cycles);
+//         end else begin
+//           dromajo_step(hart_id_i,
+//                        commit_instr_id_commit[i].pc,
+//                        commit_instr_id_commit[i].ex.tval[31:0],
+//                        csr_rdata_csr_commit, cycles);
+//         end
+//       end
+//     end
+//   end
+// `endif
+// 
+//   always_ff @(posedge clk_i or negedge rst_ni) begin
+//     if (~rst_ni) begin
+//       cycles <= 0;
+//     end else begin
+//       string mode = "";
+//       if (debug_mode) mode = "D";
+//       else begin
+//         case (priv_lvl)
+//         riscv::PRIV_LVL_M: mode = "M";
+//         riscv::PRIV_LVL_S: mode = "S";
+//         riscv::PRIV_LVL_U: mode = "U";
+//         endcase
+//       end
+//       for (int i = 0; i < NR_COMMIT_PORTS; i++) begin
+//         if (commit_ack[i] && !commit_instr_id_commit[i].ex.valid) begin
+//           $fwrite(f, "%d 0x%0h %s (0x%h) DASM(%h)\n", cycles, commit_instr_id_commit[i].pc, mode, commit_instr_id_commit[i].ex.tval[31:0], commit_instr_id_commit[i].ex.tval[31:0]);
+//         end else if (commit_ack[i] && commit_instr_id_commit[i].ex.valid) begin
+//           if (commit_instr_id_commit[i].ex.cause == 2) begin
+//             $fwrite(f, "Exception Cause: Illegal Instructions, DASM(%h) PC=%h\n", commit_instr_id_commit[i].ex.tval[31:0], commit_instr_id_commit[i].pc);
+//           end else begin
+//             if (debug_mode) begin
+//               $fwrite(f, "%d 0x%0h %s (0x%h) DASM(%h)\n", cycles, commit_instr_id_commit[i].pc, mode, commit_instr_id_commit[i].ex.tval[31:0], commit_instr_id_commit[i].ex.tval[31:0]);
+//             end else begin
+//               $fwrite(f, "Exception Cause: %5d, DASM(%h) PC=%h\n", commit_instr_id_commit[i].ex.cause, commit_instr_id_commit[i].ex.tval[31:0], commit_instr_id_commit[i].pc);
+//             end
+//           end
+//         end
+//       end
+//         cycles <= cycles + 1;
+//     end
+//   end
+// 
+//   final begin
+//     $fclose(f);
+//   end
 `endif // VERILATOR
 //pragma translate_on
 
