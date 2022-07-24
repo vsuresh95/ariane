@@ -656,7 +656,9 @@ module decoder (
                         imm_select = SIMM;
                         instruction_o.rs1[4:0]  = instr.stype.rs1;
                         instruction_o.rs2[4:0]  = instr.stype.rs2;
-                        instruction_o.use_dcs   = 1'b1;
+                        if (instr.instr[30:29] != 2'b00) begin
+                            instruction_o.use_dcs   = 1'b1;
+                        end
                         // determine store size
                         unique case (instr.stype.funct3)
                             3'b000: instruction_o.op  = ariane_pkg::SB;
@@ -696,7 +698,9 @@ module decoder (
                     imm_select = IIMM;
                     instruction_o.rs1[4:0] = instr.itype.rs1;
                     instruction_o.rd[4:0]  = instr.itype.rd;
+                    if (instr.instr[30:29] != 2'b00) begin
                         instruction_o.use_dcs   = 1'b1;
+                    end
                     // determine load size and signed type
                     unique case (instr.itype.funct3)
                         3'b000: instruction_o.op  = ariane_pkg::LB;

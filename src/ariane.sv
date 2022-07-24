@@ -801,6 +801,7 @@ module ariane #(
 // mock tracer for Verilator, to be used with spike-dasm
 `else
 
+  /*
   int f;
   logic [63:0] cycles;
 
@@ -884,6 +885,7 @@ module ariane #(
   final begin
     $fclose(f);
   end
+  */
 `endif // VERILATOR
 //pragma translate_on
 
