@@ -53,7 +53,9 @@ module commit_stage #(
     output logic                                    fence_o,            // flush D$ and pipeline
     output logic                                    flush_commit_o,     // request a pipeline flush
     output logic                                    sfence_vma_o,       // flush TLBs and pipeline
-    output logic [1:0]                              fence_l2_o          // fence indication to l2
+    output logic [1:0]                              fence_l2_data,      // fence indication to l2
+    output logic                                    fence_l2_valid,     // fence indication to l2
+    input logic                                     fence_l2_ready      // fence indication to l2
 );
 
 // ila_0 i_ila_commit (
@@ -87,6 +89,9 @@ module commit_stage #(
 
     logic instr_0_is_amo;
     assign instr_0_is_amo = is_amo(commit_instr_i[0].op);
+
+    enum logic [3:0] { IDLE, WAIT_FOR_READY, VALID_FENCE, WAIT_FOR_DONE } state_d, state_q;
+
     // -------------------
     // Commit Instruction
     // -------------------
@@ -112,8 +117,11 @@ module commit_stage #(
         fence_o            = 1'b0;
         sfence_vma_o       = 1'b0;
         csr_write_fflags_o = 1'b0;
-        flush_commit_o  = 1'b0;
-        fence_l2_o         = 2'b0;
+        flush_commit_o     = 1'b0;
+
+        state_d            = state_q;
+        fence_l2_data      = 2'b0;
+        fence_l2_valid     = 1'b0;
 
         // we will not commit the instruction if we took an exception
         // and we do not commit the instruction if we requested a halt
@@ -194,14 +202,39 @@ module commit_stage #(
             // fence is idempotent so we can safely re-execute it after returning
             // from interrupt service routine
             if (commit_instr_i[0].op == FENCE) begin
-                commit_ack_o[0] = no_st_pending_i;
-                // tell the controller to flush the D$
-                fence_o = no_st_pending_i;
+                commit_ack_o[0] = 1'b0;
 
-                // we also sample the values of SR (required for self-invalidation)
-                // and PW (required for WB flush)
-                fence_l2_o[0] = commit_instr_i[0].fence_op[0] & fence_o; // SR
-                fence_l2_o[1] = commit_instr_i[0].fence_op[1] & fence_o; // PW
+                case (state_q)
+                    IDLE: begin
+                        if (no_st_pending_i) begin
+                            state_d = WAIT_FOR_READY;
+                        end
+                    end
+                    WAIT_FOR_READY: begin
+                        if (commit_instr_i[0].fence_op) begin
+                            if (fence_l2_ready) begin
+                                fence_l2_data = commit_instr_i[0].fence_op;
+                                fence_l2_valid = 1'b1;
+                                state_d = VALID_FENCE;
+                            end
+                        end else begin
+                            state_d = WAIT_FOR_DONE;
+                        end
+                    end
+                    VALID_FENCE: begin
+                        if (!fence_l2_ready) begin
+                            state_d = WAIT_FOR_DONE;
+                        end
+                    end
+                    WAIT_FOR_DONE: begin
+                        if (fence_l2_ready) begin
+                            // tell the controller to flush the D$
+                            fence_o = no_st_pending_i;
+                            commit_ack_o[0] = 1'b1;
+                            state_d = IDLE;
+                        end
+                    end
+                endcase
             end
             // ------------------
             // AMO
@@ -291,6 +324,14 @@ module commit_stage #(
         // - If we halted the processor
         if (halt_i) begin
             exception_o.valid = 1'b0;
+        end
+    end
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (~rst_ni) begin
+            state_q     <= IDLE;
+        end else begin
+            state_q     <= state_d;
         end
     end
 endmodule
