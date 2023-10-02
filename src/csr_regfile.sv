@@ -21,10 +21,10 @@ module csr_regfile #(
 ) (
     input  logic                  clk_i,                      // Clock
     input  logic                  rst_ni,                     // Asynchronous reset active low
-    input  logic                  time_irq_i,                 // Timer threw a interrupt
+    (* mark_debug = "true" *) input  logic                  time_irq_i,                 // Timer threw a interrupt
     // send a flush request out if a CSR with a side effect has changed (e.g. written)
     output logic                  flush_o,
-    output logic                  halt_csr_o,                 // halt requested
+    (* mark_debug = "true" *) output logic                  halt_csr_o,                 // halt requested
     // commit acknowledge
     input  scoreboard_entry_t [NrCommitPorts-1:0] commit_instr_i, // the instruction we want to commit
     input  logic [NrCommitPorts-1:0]              commit_ack_i,   // Commit acknowledged a instruction -> increase instret CSR
@@ -65,8 +65,8 @@ module csr_regfile #(
     output logic [43:0]           satp_ppn_o,
     output logic [AsidWidth-1:0] asid_o,
     // external interrupts
-    input  logic [1:0]            irq_i,                      // external interrupt in
-    input  logic                  ipi_i,                      // inter processor interrupt -> connected to machine mode sw
+    (* mark_debug = "true" *) input  logic [1:0]            irq_i,                      // external interrupt in
+    (* mark_debug = "true" *) input  logic                  ipi_i,                      // inter processor interrupt -> connected to machine mode sw
     input  logic                  debug_req_i,                // debug request in
     output logic                  set_debug_pc_o,
     // Virtualization Support

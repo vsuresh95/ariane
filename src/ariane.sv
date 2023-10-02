@@ -55,7 +55,9 @@ module ariane #(
   output ariane_axi::snoop_resp_t      ace_resp_o,
 `endif
   // fence indication to l2
-  output logic [1:0]                   fence_l2_o,
+  output logic [1:0]                 fence_l2_data,
+  output logic                       fence_l2_valid,
+  input logic                        fence_l2_ready,
 
   //flush L1 from L2
   input logic flush_l1_i,
@@ -479,7 +481,9 @@ module ariane #(
     .fence_o                ( fence_commit_controller       ),
     .sfence_vma_o           ( sfence_vma_commit_controller  ),
     .flush_commit_o         ( flush_commit                  ),
-    .fence_l2_o             ( fence_l2_o                    ),
+    .fence_l2_data          ( fence_l2_data                 ),
+    .fence_l2_valid         ( fence_l2_valid                ),
+    .fence_l2_ready         ( fence_l2_ready                ),
     .*
   );
 
